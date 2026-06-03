@@ -24,12 +24,29 @@ const CORNERS = [
   { id: 'BR', label: 'Player 4', pos: 'bottom-0 right-0 rounded-tl-2xl', flex: 'flex-col items-end justify-end' }
 ];
 
-// --- SOUND EFFECTS ENGINE (Synthesized on-the-fly) ---
-const playSound = (type) => {
+// Keep a persistent global reference to the AudioContext to prevent re-creation blocks
+let globalAudioCtx = null;
+
+const getSharedAudioContext = () => {
+  if (!globalAudioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      globalAudioCtx = new AudioContextClass();
+    }
+  }
+  return globalAudioCtx;
+};
+
+// --- MOBILE-SAFE SOUND EFFECTS ENGINE ---
+const playSound = async (type) => {
   try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
+
+    // Mobile browsers suspend audio contexts automatically. We MUST resume it inside a call stack originating from a user interaction.
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
     
     if (type === 'correct') {
       // Happy synth chime
@@ -100,6 +117,23 @@ const playSound = (type) => {
     }
   } catch (e) {
     console.warn("Audio Context blocked or not supported: ", e);
+  }
+};
+
+// Simple silent trigger to initialize/unlock the AudioContext on mobile
+const unlockMobileAudio = () => {
+  const ctx = getSharedAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().then(() => {
+      // Play a quick micro-silent node to fully register system permission
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.01);
+    }).catch(e => console.warn("Failed to resume context on unlock:", e));
   }
 };
 
@@ -270,6 +304,24 @@ export default function App() {
 
   const [windowSize, setWindowSize] = useState({ w: window.innerWidth, h: window.innerHeight });
 
+  // Auto-unlock audio once user interacts anywhere on the body
+  useEffect(() => {
+    const unlockHandler = () => {
+      unlockMobileAudio();
+      // Clean up listeners once unlocked
+      window.removeEventListener('click', unlockHandler);
+      window.removeEventListener('touchstart', unlockHandler);
+    };
+
+    window.addEventListener('click', unlockHandler);
+    window.addEventListener('touchstart', unlockHandler);
+
+    return () => {
+      window.removeEventListener('click', unlockHandler);
+      window.removeEventListener('touchstart', unlockHandler);
+    };
+  }, []);
+
   useEffect(() => {
     const handleResize = () => setWindowSize({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener('resize', handleResize);
@@ -337,6 +389,8 @@ export default function App() {
   const handleDeckTap = () => {
     if (roundState === 'guessing' || draggedItem || gameState === 'gameover') return;
     
+    // Resume audio context instantly upon deck click event
+    unlockMobileAudio();
     playSound('flip');
     const newCard = generateCard();
     setCard(newCard);
@@ -346,6 +400,7 @@ export default function App() {
 
   const handlePointerDown = (e, item) => {
     if (roundState !== 'guessing' || shaking || gameState === 'gameover') return; 
+    unlockMobileAudio();
     setDraggedItem(item);
     setDragPos({ x: e.clientX, y: e.clientY });
   };
@@ -436,6 +491,10 @@ export default function App() {
   };
 
   const startGame = () => {
+    // Force browser interaction unlock chain
+    unlockMobileAudio();
+    playSound('flip');
+
     setScores({ TL: 0, TR: 0, BL: 0, BR: 0 });
     setRoundState('idle');
     setCard(null);
@@ -459,7 +518,10 @@ export default function App() {
               {[1, 2, 3, 4].map(num => (
                 <button
                   key={num}
-                  onClick={() => setNumPlayers(num)}
+                  onClick={() => {
+                    unlockMobileAudio();
+                    setNumPlayers(num);
+                  }}
                   className={`w-12 h-12 rounded-full font-bold transition-all ${
                     numPlayers === num ? 'bg-blue-500 text-white shadow-[0_0_10px_rgba(59,130,246,0.5)] scale-110' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                   }`}
@@ -489,13 +551,19 @@ export default function App() {
             <div className="flex bg-slate-700 rounded-xl p-1 mb-4">
               <button 
                 className={`flex-1 py-2 rounded-lg font-bold transition-all ${gameConfig.mode === 'points' ? 'bg-slate-800 text-yellow-400 shadow' : 'text-slate-400'}`}
-                onClick={() => setGameConfig({ mode: 'points', limit: 5 })}
+                onClick={() => {
+                  unlockMobileAudio();
+                  setGameConfig({ mode: 'points', limit: 5 });
+                }}
               >
                 Points Race
               </button>
               <button 
                 className={`flex-1 py-2 rounded-lg font-bold transition-all ${gameConfig.mode === 'time' ? 'bg-slate-800 text-yellow-400 shadow' : 'text-slate-400'}`}
-                onClick={() => setGameConfig({ mode: 'time', limit: 180 })}
+                onClick={() => {
+                  unlockMobileAudio();
+                  setGameConfig({ mode: 'time', limit: 180 });
+                }}
               >
                 Time Limit
               </button>
@@ -504,13 +572,27 @@ export default function App() {
             <div className="flex justify-center gap-2">
               {gameConfig.mode === 'points' ? (
                 [5, 7, 10].map(pts => (
-                  <button key={pts} onClick={() => setGameConfig({ mode: 'points', limit: pts })} className={`px-4 py-2 rounded-lg font-bold ${gameConfig.limit === pts ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                  <button 
+                    key={pts} 
+                    onClick={() => {
+                      unlockMobileAudio();
+                      setGameConfig({ mode: 'points', limit: pts });
+                    }} 
+                    className={`px-4 py-2 rounded-lg font-bold ${gameConfig.limit === pts ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}
+                  >
                     {pts} Pts
                   </button>
                 ))
               ) : (
                 [120, 180, 300, 600].map(secs => (
-                  <button key={secs} onClick={() => setGameConfig({ mode: 'time', limit: secs })} className={`px-4 py-2 rounded-lg font-bold ${gameConfig.limit === secs ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                  <button 
+                    key={secs} 
+                    onClick={() => {
+                      unlockMobileAudio();
+                      setGameConfig({ mode: 'time', limit: secs });
+                    }} 
+                    className={`px-4 py-2 rounded-lg font-bold ${gameConfig.limit === secs ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}
+                  >
                     {secs / 60} Min
                   </button>
                 ))
@@ -692,10 +774,19 @@ export default function App() {
             )}
             
             <div className="flex gap-4">
-              <button onClick={() => setGameState('setup')} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold transition-colors">
+              <button 
+                onClick={() => {
+                  unlockMobileAudio();
+                  setGameState('setup');
+                }} 
+                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold transition-colors"
+              >
                 Setup
               </button>
-              <button onClick={startGame} className="flex-1 bg-green-500 hover:bg-green-400 text-white py-3 rounded-xl font-bold transition-colors">
+              <button 
+                onClick={startGame} 
+                className="flex-1 bg-green-500 hover:bg-green-400 text-white py-3 rounded-xl font-bold transition-colors"
+              >
                 Play Again
               </button>
             </div>
@@ -706,7 +797,10 @@ export default function App() {
       {/* QUIT BUTTON */}
       {gameState !== 'gameover' && (
         <button 
-          onClick={() => setGameState('setup')}
+          onClick={() => {
+            unlockMobileAudio();
+            setGameState('setup');
+          }}
           className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/10 hover:bg-white/20 backdrop-blur-md px-6 py-2 rounded-full text-white/70 text-sm font-bold z-50 transition-colors"
         >
           End Game
