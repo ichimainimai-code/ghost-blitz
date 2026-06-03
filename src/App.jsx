@@ -24,6 +24,85 @@ const CORNERS = [
   { id: 'BR', label: 'Player 4', pos: 'bottom-0 right-0 rounded-tl-2xl', flex: 'flex-col items-end justify-end' }
 ];
 
+// --- SOUND EFFECTS ENGINE (Synthesized on-the-fly) ---
+const playSound = (type) => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    
+    if (type === 'correct') {
+      // Happy synth chime
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+      
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    } else if (type === 'wrong') {
+      // Low buzz warning
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.25);
+      
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    } else if (type === 'win') {
+      // Winner fanfare
+      const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+      notes.forEach((freq, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + index * 0.1);
+        
+        gain.gain.setValueAtTime(0.15, ctx.currentTime + index * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + index * 0.1 + 0.3);
+        
+        osc.start(ctx.currentTime + index * 0.1);
+        osc.stop(ctx.currentTime + index * 0.1 + 0.3);
+      });
+    } else if (type === 'flip') {
+      // Card swipe whoosh
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(300, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.15);
+      
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    }
+  } catch (e) {
+    console.warn("Audio Context blocked or not supported: ", e);
+  }
+};
+
 // --- AUTHENTIC DECK GENERATOR ---
 const FULL_DECK = (() => {
   let deck = [];
@@ -63,7 +142,7 @@ const FULL_DECK = (() => {
   return deck;
 })();
 
-// --- NEW CUTER SVGS ---
+// --- SVGS ---
 const ItemIcon = ({ shape, color, size = 80, className = "" }) => {
   const fill = COLORS[color] || 'currentColor';
   const stroke = color === 'white' ? '#475569' : '#0f172a'; 
@@ -128,6 +207,44 @@ const ItemIcon = ({ shape, color, size = 80, className = "" }) => {
   }
 };
 
+// --- CONFETTI PARTICLE SYSTEM ---
+const ConfettiGenerator = ({ x, y }) => {
+  const particles = useMemo(() => {
+    return Array.from({ length: 30 }).map((_, i) => {
+      const angle = Math.random() * Math.PI * 2;
+      const velocity = 50 + Math.random() * 100;
+      const color = ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#ec4899', '#8b5cf6'][Math.floor(Math.random() * 6)];
+      return {
+        id: i,
+        dx: Math.cos(angle) * velocity,
+        dy: Math.sin(angle) * velocity,
+        color,
+        size: 6 + Math.random() * 8
+      };
+    });
+  }, [x, y]);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-50">
+      {particles.map((p) => (
+        <span
+          key={p.id}
+          className="absolute rounded-full animate-ping opacity-75"
+          style={{
+            left: `calc(${x}px + ${p.dx}px)`,
+            top: `calc(${y}px + ${p.dy}px)`,
+            width: `${p.size}px`,
+            height: `${p.size}px`,
+            backgroundColor: p.color,
+            transition: 'all 0.6s cubic-bezier(0.1, 0.8, 0.3, 1)',
+            transform: 'translate(-50%, -50%)'
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 // --- MAIN APP COMPONENT ---
 export default function App() {
   const [gameState, setGameState] = useState('setup');
@@ -148,6 +265,9 @@ export default function App() {
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   
+  // Confetti trigger coordinates
+  const [confettiOrigin, setConfettiOrigin] = useState(null);
+
   const [windowSize, setWindowSize] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   useEffect(() => {
@@ -156,6 +276,7 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Timer Mode Logic
   useEffect(() => {
     if (gameState === 'playing' && gameConfig.mode === 'time') {
       if (timeLeft > 0) {
@@ -169,6 +290,7 @@ export default function App() {
 
         if (leaders.length === 1) {
           setWinner(leaders[0]);
+          playSound('win');
           setGameState('gameover');
         } else {
           setTiedPlayers(leaders);
@@ -215,6 +337,7 @@ export default function App() {
   const handleDeckTap = () => {
     if (roundState === 'guessing' || draggedItem || gameState === 'gameover') return;
     
+    playSound('flip');
     const newCard = generateCard();
     setCard(newCard);
     setRoundState('guessing');
@@ -257,10 +380,16 @@ export default function App() {
         }
 
         if (isCorrect) {
+          playSound('correct');
+          setConfettiOrigin({ x: clientX, y: clientY });
+          setTimeout(() => setConfettiOrigin(null), 1000);
+
           setScores(prev => ({ ...prev, [scoredPlayer]: prev[scoredPlayer] + 1 }));
           setWinner(scoredPlayer);
+          playSound('win');
           setGameState('gameover');
         } else {
+          playSound('wrong');
           setScores(prev => ({ ...prev, [scoredPlayer]: prev[scoredPlayer] - 1 }));
           const newElim = [...eliminated, scoredPlayer];
           setEliminated(newElim);
@@ -270,6 +399,7 @@ export default function App() {
           const remaining = tiedPlayers.filter(p => !newElim.includes(p));
           if (remaining.length === 1) {
             setWinner(remaining[0]);
+            playSound('win');
             setGameState('gameover');
           } else if (remaining.length === 0) {
             setWinner('Draw');
@@ -278,15 +408,21 @@ export default function App() {
         }
       } else {
         if (isCorrect) {
+          playSound('correct');
+          setConfettiOrigin({ x: clientX, y: clientY });
+          setTimeout(() => setConfettiOrigin(null), 1000);
+
           const newScore = scores[scoredPlayer] + 1;
           setScores(prev => ({ ...prev, [scoredPlayer]: newScore }));
           setRoundState('scored'); 
           
           if (gameConfig.mode === 'points' && newScore >= gameConfig.limit) {
             setWinner(scoredPlayer);
+            playSound('win');
             setGameState('gameover');
           }
         } else {
+          playSound('wrong');
           setScores(prev => ({ ...prev, [scoredPlayer]: prev[scoredPlayer] - 1 }));
           setShaking(true);
           setTimeout(() => setShaking(false), 500);
@@ -313,7 +449,7 @@ export default function App() {
   if (gameState === 'setup') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 font-sans">
-        <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center">
+        <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center border border-slate-700">
           <h1 className="text-4xl font-bold mb-2 text-yellow-400 tracking-wider">GHOST BLITZ</h1>
           <p className="text-slate-400 mb-8">Digital Edition</p>
           
@@ -342,7 +478,7 @@ export default function App() {
                   maxLength={12}
                   value={playerNames[c.id]}
                   onChange={(e) => setPlayerNames({ ...playerNames, [c.id]: e.target.value })}
-                  className="bg-slate-700 text-white px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                  className="bg-slate-700 text-white px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-center border border-slate-600"
                 />
               ))}
             </div>
@@ -398,7 +534,7 @@ export default function App() {
 
   return (
     <div 
-      className="fixed inset-0 bg-amber-900 overflow-hidden touch-none select-none font-sans"
+      className="fixed inset-0 bg-amber-950 overflow-hidden touch-none select-none font-sans"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
@@ -435,8 +571,13 @@ export default function App() {
         }
       `}</style>
 
-      <div className="absolute inset-0 opacity-30 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-600 via-amber-900 to-black mix-blend-multiply" />
+      {/* WOODEN TABLE BACKGROUND */}
+      <div className="absolute inset-0 opacity-40 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-600 via-amber-950 to-black mix-blend-multiply" />
 
+      {/* CONFETTI BURST ON CORRECT DRAG */}
+      {confettiOrigin && <ConfettiGenerator x={confettiOrigin.x} y={confettiOrigin.y} />}
+
+      {/* HUD ELEMENTS */}
       {gameConfig.mode === 'time' && gameState === 'playing' && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-900/80 px-6 py-2 rounded-full z-40 text-yellow-400 font-bold text-2xl tracking-widest border border-slate-700 shadow-lg">
           {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
@@ -449,6 +590,7 @@ export default function App() {
         </div>
       )}
 
+      {/* PLAYER CORNERS */}
       {activeCorners.map(corner => {
         const isEliminated = gameState === 'suddendeath' && eliminated.includes(corner.id);
         const isTied = gameState === 'suddendeath' && tiedPlayers.includes(corner.id);
@@ -472,13 +614,16 @@ export default function App() {
         );
       })}
 
+      {/* GAME AREA CENTER */}
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-4xl max-h-4xl flex items-center justify-center">
         
+        {/* CENTER DECK / CARD */}
         <div 
           className={`relative z-20 w-48 h-64 md:w-56 md:h-80 cursor-pointer perspective-1000 ${(roundState === 'scored' || gameState === 'gameover') ? 'card-flip-flipped' : ''}`}
           onClick={handleDeckTap}
         >
           <div className="card-flip-inner w-full h-full relative shadow-2xl rounded-2xl">
+            {/* FACE DOWN (DECK) */}
             <div className="card-face absolute inset-0 w-full h-full bg-indigo-700 rounded-2xl border-4 border-slate-300 flex flex-col items-center justify-center shadow-[inset_0_0_30px_rgba(0,0,0,0.6)]">
               <ItemIcon shape="ghost" color="white" size={70} className="mx-auto mb-4 opacity-50" />
               <p className="text-2xl text-white font-black tracking-widest opacity-90 uppercase text-center px-4">
@@ -486,6 +631,7 @@ export default function App() {
               </p>
             </div>
 
+            {/* FACE UP (CARD REVEALED) */}
             <div className="card-face card-back absolute inset-0 w-full h-full bg-slate-50 rounded-2xl border-4 border-slate-300 shadow-xl flex flex-col items-center justify-center p-6">
               {card && (
                 <div className="relative w-full h-full flex flex-col items-center justify-around gap-4">
@@ -497,6 +643,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* WOODEN ITEMS AROUND THE CARD */}
         {itemPositions.map((item) => {
           const isBeingDragged = draggedItem?.shape === item.shape;
           
@@ -531,6 +678,7 @@ export default function App() {
         })}
       </div>
 
+      {/* GAME OVER OVERLAY */}
       {gameState === 'gameover' && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl text-center max-w-md w-full mx-4 border-2 border-slate-600">
@@ -555,6 +703,7 @@ export default function App() {
         </div>
       )}
 
+      {/* QUIT BUTTON */}
       {gameState !== 'gameover' && (
         <button 
           onClick={() => setGameState('setup')}
