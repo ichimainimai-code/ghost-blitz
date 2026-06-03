@@ -123,9 +123,20 @@ const playSound = async (type) => {
 // Simple silent trigger to initialize/unlock the AudioContext on mobile
 const unlockMobileAudio = () => {
   const ctx = getSharedAudioContext();
-  if (ctx && ctx.state === 'suspended') {
-    ctx.resume().then(() => {
-      // Play a quick micro-silent node to fully register system permission
+  if (ctx) {
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => {
+        // Play an absolute micro-silent node to register iOS webkit user permission
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.001, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.01);
+      }).catch(e => console.warn("Failed to resume context on unlock:", e));
+    } else {
+      // Even if running, play a micro-silent oscillator to confirm active state
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -133,7 +144,7 @@ const unlockMobileAudio = () => {
       gain.gain.setValueAtTime(0.001, ctx.currentTime);
       osc.start();
       osc.stop(ctx.currentTime + 0.01);
-    }).catch(e => console.warn("Failed to resume context on unlock:", e));
+    }
   }
 };
 
@@ -299,26 +310,29 @@ export default function App() {
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   
+  // Track whether iOS Webkit audio has been fully activated
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
+  
   // Confetti trigger coordinates
   const [confettiOrigin, setConfettiOrigin] = useState(null);
 
   const [windowSize, setWindowSize] = useState({ w: window.innerWidth, h: window.innerHeight });
 
-  // Auto-unlock audio once user interacts anywhere on the body
+  // Native background document unlocker for iOS Safari fallback
   useEffect(() => {
-    const unlockHandler = () => {
+    const handleDocumentInteraction = () => {
       unlockMobileAudio();
-      // Clean up listeners once unlocked
-      window.removeEventListener('click', unlockHandler);
-      window.removeEventListener('touchstart', unlockHandler);
+      setAudioUnlocked(true);
+      window.removeEventListener('click', handleDocumentInteraction, true);
+      window.removeEventListener('touchstart', handleDocumentInteraction, true);
     };
 
-    window.addEventListener('click', unlockHandler);
-    window.addEventListener('touchstart', unlockHandler);
+    window.addEventListener('click', handleDocumentInteraction, true);
+    window.addEventListener('touchstart', handleDocumentInteraction, true);
 
     return () => {
-      window.removeEventListener('click', unlockHandler);
-      window.removeEventListener('touchstart', unlockHandler);
+      window.removeEventListener('click', handleDocumentInteraction, true);
+      window.removeEventListener('touchstart', handleDocumentInteraction, true);
     };
   }, []);
 
@@ -516,8 +530,23 @@ export default function App() {
 
   if (gameState === 'setup') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 font-sans">
-        <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center border border-slate-700">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 font-sans relative">
+        {/* NATIVE iOS SOUND ACTIVATOR OVERLAY (Invisible but catches raw iOS touch events prior to game setup clicks) */}
+        {!audioUnlocked && (
+          <div 
+            onTouchStart={() => {
+              unlockMobileAudio();
+              setAudioUnlocked(true);
+            }}
+            onClick={() => {
+              unlockMobileAudio();
+              setAudioUnlocked(true);
+            }}
+            className="absolute inset-0 bg-transparent z-50 cursor-pointer"
+          />
+        )}
+
+        <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center border border-slate-700 relative z-10">
           <h1 className="text-4xl font-bold mb-2 text-yellow-400 tracking-wider">GHOST BLITZ</h1>
           <p className="text-slate-400 mb-8">Digital Edition</p>
           
