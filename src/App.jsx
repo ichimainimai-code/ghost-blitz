@@ -387,10 +387,19 @@ export default function App() {
   };
 
   const handleDeckTap = () => {
-    if (roundState === 'guessing' || draggedItem || gameState === 'gameover') return;
+    if (draggedItem || gameState === 'gameover') return;
     
-    // Resume audio context instantly upon deck click event
     unlockMobileAudio();
+
+    // IF ALREADY GUESSING: Re-read the card's items description instead of ignoring the tap!
+    if (roundState === 'guessing') {
+      if (card) {
+        speakCard(card);
+      }
+      return;
+    }
+    
+    // Otherwise, standard flip-card sequence
     playSound('flip');
     const newCard = generateCard();
     setCard(newCard);
