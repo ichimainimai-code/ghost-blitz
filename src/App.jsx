@@ -394,7 +394,18 @@ export default function App() {
       window.speechSynthesis.cancel();
       const text = `${cardData.items[0].color} ${cardData.items[0].shape}, and ${cardData.items[1].color} ${cardData.items[1].shape}`;
       const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Force the language to American English
+      utterance.lang = 'en-US';
       utterance.rate = 1.1; 
+
+      // Attempt to find a native English voice installed on the device
+      const voices = window.speechSynthesis.getVoices();
+      const englishVoice = voices.find(voice => voice.lang.startsWith('en-'));
+      if (englishVoice) {
+          utterance.voice = englishVoice;
+      }
+
       window.speechSynthesis.speak(utterance);
     }
   };
