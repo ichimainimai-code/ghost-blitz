@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+code = """import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 // --- GAME LOGIC & CONSTANTS ---
 const BASE_ITEMS = [
@@ -15,6 +15,11 @@ const COLORS = {
   blue: '#3b82f6',
   red: '#ef4444',
   grey: '#64748b' // slightly darker grey for better contrast
+};
+
+const getTextColor = (colorName) => {
+  if (colorName === 'white') return '#475569'; // slate-600 contrast for white text on light card
+  return COLORS[colorName];
 };
 
 const CORNERS = [
@@ -43,21 +48,19 @@ const playSound = async (type) => {
     const ctx = getSharedAudioContext();
     if (!ctx) return;
 
-    // Mobile browsers suspend audio contexts automatically. We MUST resume it inside a call stack originating from a user interaction.
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
     
     if (type === 'correct') {
-      // Happy synth chime
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
       
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
       
       gain.gain.setValueAtTime(0.15, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
@@ -65,7 +68,6 @@ const playSound = async (type) => {
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
     } else if (type === 'wrong') {
-      // Low buzz warning
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -81,8 +83,7 @@ const playSound = async (type) => {
       osc.start();
       osc.stop(ctx.currentTime + 0.25);
     } else if (type === 'win') {
-      // Winner fanfare
-      const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+      const notes = [261.63, 329.63, 392.00, 523.25];
       notes.forEach((freq, index) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -99,7 +100,6 @@ const playSound = async (type) => {
         osc.stop(ctx.currentTime + index * 0.1 + 0.3);
       });
     } else if (type === 'flip') {
-      // Card swipe whoosh
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -120,13 +120,11 @@ const playSound = async (type) => {
   }
 };
 
-// Simple silent trigger to initialize/unlock the AudioContext on mobile
 const unlockMobileAudio = () => {
   const ctx = getSharedAudioContext();
   if (ctx) {
     if (ctx.state === 'suspended') {
       ctx.resume().then(() => {
-        // Play an absolute micro-silent node to register iOS webkit user permission
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -136,7 +134,6 @@ const unlockMobileAudio = () => {
         osc.stop(ctx.currentTime + 0.01);
       }).catch(e => console.warn("Failed to resume context on unlock:", e));
     } else {
-      // Even if running, play a micro-silent oscillator to confirm active state
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -188,63 +185,63 @@ const FULL_DECK = (() => {
 })();
 
 // --- SVGS ---
-const ItemIcon = ({ shape, color, size = 80, className = "" }) => {
+const ItemIcon = ({ shape, color, size = 80, className = \"\" }) => {
   const fill = COLORS[color] || 'currentColor';
   const stroke = color === 'white' ? '#475569' : '#0f172a'; 
 
   switch (shape) {
     case 'ghost':
       return (
-        <svg width={size} height={size} viewBox="0 0 100 100" className={`filter drop-shadow-lg ${className}`}>
-          <path d="M 50 10 C 20 10, 15 30, 15 65 C 15 90, 25 90, 30 80 C 35 70, 40 90, 50 80 C 60 90, 65 70, 70 80 C 75 90, 85 90, 85 65 C 85 30, 80 10, 50 10 Z" fill={fill} stroke={stroke} strokeWidth="5" strokeLinejoin="round" />
-          <circle cx="35" cy="40" r="6" fill="#0f172a" />
-          <circle cx="65" cy="40" r="6" fill="#0f172a" />
-          <path d="M 42 55 Q 50 62 58 55" stroke="#0f172a" fill="none" strokeWidth="4" strokeLinecap="round" />
-          <ellipse cx="23" cy="45" rx="5" ry="3" fill="#fca5a5" opacity="0.8" />
-          <ellipse cx="77" cy="45" rx="5" ry="3" fill="#fca5a5" opacity="0.8" />
+        <svg width={size} height={size} viewBox=\"0 0 100 100\" className={`filter drop-shadow-lg ${className}`}>
+          <path d=\"M 50 10 C 20 10, 15 30, 15 65 C 15 90, 25 90, 30 80 C 35 70, 40 90, 50 80 C 60 90, 65 70, 70 80 C 75 90, 85 90, 85 65 C 85 30, 80 10, 50 10 Z\" fill={fill} stroke={stroke} strokeWidth=\"5\" strokeLinejoin=\"round\" />
+          <circle cx=\"35\" cy=\"40\" r=\"6\" fill=\"#0f172a\" />
+          <circle cx=\"65\" cy=\"40\" r=\"6\" fill=\"#0f172a\" />
+          <path d=\"M 42 55 Q 50 62 58 55\" stroke=\"#0f172a\" fill=\"none\" strokeWidth=\"4\" strokeLinecap=\"round\" />
+          <ellipse cx=\"23\" cy=\"45\" rx=\"5\" ry=\"3\" fill=\"#fca5a5\" opacity=\"0.8\" />
+          <ellipse cx=\"77\" cy=\"45\" rx=\"5\" ry=\"3\" fill=\"#fca5a5\" opacity=\"0.8\" />
         </svg>
       );
     case 'bottle':
       return (
-        <svg width={size} height={size} viewBox="0 0 100 100" className={`filter drop-shadow-lg ${className}`}>
-          <path d="M 40 5 L 60 5 L 55 20 L 45 20 Z" fill="#d97706" stroke={stroke} strokeWidth="4" strokeLinejoin="round" />
-          <path d="M 45 20 L 55 20 L 55 40 Q 80 50 80 80 Q 80 95 50 95 Q 20 95 20 80 Q 20 50 45 40 Z" fill={fill} stroke={stroke} strokeWidth="5" strokeLinejoin="round" />
-          <path d="M 30 75 Q 35 55 50 50" stroke="white" fill="none" strokeWidth="5" strokeLinecap="round" opacity="0.5" />
+        <svg width={size} height={size} viewBox=\"0 0 100 100\" className={`filter drop-shadow-lg ${className}`}>
+          <path d=\"M 40 5 L 60 5 L 55 20 L 45 20 Z\" fill=\"#d97706\" stroke={stroke} strokeWidth=\"4\" strokeLinejoin=\"round\" />
+          <path d=\"M 45 20 L 55 20 L 55 40 Q 80 50 80 80 Q 80 95 50 95 Q 20 95 20 80 Q 20 50 45 40 Z\" fill={fill} stroke={stroke} strokeWidth=\"5\" strokeLinejoin=\"round\" />
+          <path d=\"M 30 75 Q 35 55 50 50\" stroke=\"white\" fill=\"none\" strokeWidth=\"5\" strokeLinecap=\"round\" opacity=\"0.5\" />
         </svg>
       );
     case 'book':
       return (
-        <svg width={size} height={size} viewBox="0 0 100 100" className={`filter drop-shadow-lg ${className}`}>
-          <path d="M 15 25 L 75 10 L 85 75 L 25 90 Z" fill="#e2e8f0" stroke={stroke} strokeWidth="5" strokeLinejoin="round" />
-          <path d="M 10 30 L 70 15 L 80 80 L 20 95 Z" fill={fill} stroke={stroke} strokeWidth="5" strokeLinejoin="round" />
-          <path d="M 45 22 L 55 20 L 55 55 L 50 50 L 45 55 Z" fill="#f59e0b" stroke={stroke} strokeWidth="3" strokeLinejoin="round" />
-          <circle cx="45" cy="55" r="10" fill="white" opacity="0.4" />
+        <svg width={size} height={size} viewBox=\"0 0 100 100\" className={`filter drop-shadow-lg ${className}`}>
+          <path d=\"M 15 25 L 75 10 L 85 75 L 25 90 Z\" fill=\"#e2e8f0\" stroke={stroke} strokeWidth=\"5\" strokeLinejoin=\"round\" />
+          <path d=\"M 10 30 L 70 15 L 80 80 L 20 95 Z\" fill={fill} stroke={stroke} strokeWidth=\"5\" strokeLinejoin=\"round\" />
+          <path d=\"M 45 22 L 55 20 L 55 55 L 50 50 L 45 55 Z\" fill=\"#f59e0b\" stroke={stroke} strokeWidth=\"3\" strokeLinejoin=\"round\" />
+          <circle cx=\"45\" cy=\"55\" r=\"10\" fill=\"white\" opacity=\"0.4\" />
         </svg>
       );
     case 'chair':
       return (
-        <svg width={size} height={size} viewBox="0 0 100 100" className={`filter drop-shadow-lg ${className}`}>
-          <path d="M 25 10 C 25 0, 75 0, 75 10 L 75 55 L 25 55 Z" fill={fill} stroke={stroke} strokeWidth="5" strokeLinejoin="round" />
-          <path d="M 15 50 C 15 40, 85 40, 85 50 L 85 65 C 85 75, 15 75, 15 65 Z" fill={fill} stroke={stroke} strokeWidth="5" strokeLinejoin="round" />
-          <rect x="12" y="40" width="16" height="20" rx="8" fill={fill} stroke={stroke} strokeWidth="5" />
-          <rect x="72" y="40" width="16" height="20" rx="8" fill={fill} stroke={stroke} strokeWidth="5" />
-          <path d="M 25 70 L 20 90 M 75 70 L 80 90" stroke={stroke} strokeWidth="6" strokeLinecap="round" />
+        <svg width={size} height={size} viewBox=\"0 0 100 100\" className={`filter drop-shadow-lg ${className}`}>
+          <path d=\"M 25 10 C 25 0, 75 0, 75 10 L 75 55 L 25 55 Z\" fill={fill} stroke={stroke} strokeWidth=\"5\" strokeLinejoin=\"round\" />
+          <path d=\"M 15 50 C 15 40, 85 40, 85 50 L 85 65 C 85 75, 15 75, 15 65 Z\" fill={fill} stroke={stroke} strokeWidth=\"5\" strokeLinejoin=\"round\" />
+          <rect x=\"12\" y=\"40\" width=\"16\" height=\"20\" rx=\"8\" fill={fill} stroke={stroke} strokeWidth=\"5\" />
+          <rect x=\"72\" y=\"40\" width=\"16\" height=\"20\" rx=\"8\" fill={fill} stroke={stroke} strokeWidth=\"5\" />
+          <path d=\"M 25 70 L 20 90 M 75 70 L 80 90\" stroke={stroke} strokeWidth=\"6\" strokeLinecap=\"round\" />
         </svg>
       );
     case 'mouse':
       return (
-        <svg width={size} height={size} viewBox="0 0 100 100" className={`filter drop-shadow-lg ${className}`}>
-          <path d="M 75 70 Q 95 60 90 90" fill="none" stroke={stroke} strokeWidth="5" strokeLinecap="round" />
-          <ellipse cx="45" cy="70" rx="35" ry="22" fill={fill} stroke={stroke} strokeWidth="5" />
-          <circle cx="65" cy="45" r="14" fill={fill} stroke={stroke} strokeWidth="5" />
-          <circle cx="65" cy="45" r="6" fill="#fca5a5" />
-          <circle cx="28" cy="45" r="16" fill={fill} stroke={stroke} strokeWidth="5" />
-          <circle cx="28" cy="45" r="8" fill="#fca5a5" />
-          <circle cx="32" cy="65" r="4" fill="#0f172a" />
-          <circle cx="52" cy="65" r="4" fill="#0f172a" />
-          <circle cx="15" cy="75" r="4" fill="#fca5a5" />
-          <line x1="2" y1="72" x2="15" y2="75" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
-          <line x1="5" y1="80" x2="15" y2="77" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
+        <svg width={size} height={size} viewBox=\"0 0 100 100\" className={`filter drop-shadow-lg ${className}`}>
+          <path d=\"M 75 70 Q 95 60 90 90\" fill=\"none\" stroke={stroke} strokeWidth=\"5\" strokeLinecap=\"round\" />
+          <ellipse cx=\"45\" cy=\"70\" rx=\"35\" ry=\"22\" fill={fill} stroke={stroke} strokeWidth=\"5\" />
+          <circle cx=\"65\" cy=\"45\" r=\"14\" fill={fill} stroke={stroke} strokeWidth=\"5\" />
+          <circle cx=\"65\" cy=\"45\" r=\"6\" fill=\"#fca5a5\" />
+          <circle cx=\"28\" cy=\"45\" r=\"16\" fill={fill} stroke={stroke} strokeWidth=\"5\" />
+          <circle cx=\"28\" cy=\"45\" r=\"8\" fill=\"#fca5a5\" />
+          <circle cx=\"32\" cy=\"65\" r=\"4\" fill=\"#0f172a\" />
+          <circle cx=\"52\" cy=\"65\" r=\"4\" fill=\"#0f172a\" />
+          <circle cx=\"15\" cy=\"75\" r=\"4\" fill=\"#fca5a5\" />
+          <line x1=\"2\" y1=\"72\" x2=\"15\" y2=\"75\" stroke=\"#0f172a\" strokeWidth=\"2\" strokeLinecap=\"round\" />
+          <line x1=\"5\" y1=\"80\" x2=\"15\" y2=\"77\" stroke=\"#0f172a\" strokeWidth=\"2\" strokeLinecap=\"round\" />
         </svg>
       );
     default:
@@ -270,11 +267,11 @@ const ConfettiGenerator = ({ x, y }) => {
   }, [x, y]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-50">
+    <div className=\"absolute inset-0 pointer-events-none overflow-hidden z-50\">
       {particles.map((p) => (
         <span
           key={p.id}
-          className="absolute rounded-full animate-ping opacity-75"
+          className=\"absolute rounded-full animate-ping opacity-75\"
           style={{
             left: `calc(${x}px + ${p.dx}px)`,
             top: `calc(${y}px + ${p.dy}px)`,
@@ -296,7 +293,8 @@ export default function App() {
   const [numPlayers, setNumPlayers] = useState(2);
   const [playerNames, setPlayerNames] = useState({ TL: '', TR: '', BL: '', BR: '' });
   
-  const [gameConfig, setGameConfig] = useState({ mode: 'points', limit: 5 }); 
+  // Added variant to gameConfig to support visual, audio, and text modes
+  const [gameConfig, setGameConfig] = useState({ mode: 'points', limit: 5, variant: 'audio' }); 
   const [timeLeft, setTimeLeft] = useState(0);
   const [tiedPlayers, setTiedPlayers] = useState([]);
   const [eliminated, setEliminated] = useState([]);
@@ -306,33 +304,32 @@ export default function App() {
   const [card, setCard] = useState(null);
   const [roundState, setRoundState] = useState('idle');
   const [shaking, setShaking] = useState(false);
+  const [isFlipping, setIsFlipping] = useState(false); // Controls flip animation between guesses
   
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   
-  // Track whether iOS Webkit audio has been fully activated
   const [audioUnlocked, setAudioUnlocked] = useState(false);
-  
-  // Confetti trigger coordinates
   const [confettiOrigin, setConfettiOrigin] = useState(null);
-
   const [windowSize, setWindowSize] = useState({ w: window.innerWidth, h: window.innerHeight });
 
-  // Native background document unlocker for iOS Safari fallback
   useEffect(() => {
     const handleDocumentInteraction = () => {
       unlockMobileAudio();
       setAudioUnlocked(true);
       window.removeEventListener('click', handleDocumentInteraction, true);
       window.removeEventListener('touchstart', handleDocumentInteraction, true);
+      window.removeEventListener('pointerdown', handleDocumentInteraction, true);
     };
 
     window.addEventListener('click', handleDocumentInteraction, true);
     window.addEventListener('touchstart', handleDocumentInteraction, true);
+    window.addEventListener('pointerdown', handleDocumentInteraction, true);
 
     return () => {
       window.removeEventListener('click', handleDocumentInteraction, true);
       window.removeEventListener('touchstart', handleDocumentInteraction, true);
+      window.removeEventListener('pointerdown', handleDocumentInteraction, true);
     };
   }, []);
 
@@ -342,7 +339,6 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Timer Mode Logic
   useEffect(() => {
     if (gameState === 'playing' && gameConfig.mode === 'time') {
       if (timeLeft > 0) {
@@ -391,6 +387,9 @@ export default function App() {
   };
 
   const speakCard = (cardData) => {
+    // Only speak in the Audio variant
+    if (gameConfig.variant !== 'audio') return;
+    
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const text = `${cardData.items[0].color} ${cardData.items[0].shape}, and ${cardData.items[1].color} ${cardData.items[1].shape}`;
@@ -401,28 +400,41 @@ export default function App() {
   };
 
   const handleDeckTap = () => {
-    if (draggedItem || gameState === 'gameover') return;
+    if (draggedItem || gameState === 'gameover' || isFlipping) return;
     
     unlockMobileAudio();
 
-    // IF ALREADY GUESSING: Re-read the card's items description instead of ignoring the tap!
     if (roundState === 'guessing') {
-      if (card) {
+      if (gameConfig.variant === 'audio' && card) {
         speakCard(card);
       }
       return;
     }
     
-    // Otherwise, standard flip-card sequence
     playSound('flip');
-    const newCard = generateCard();
-    setCard(newCard);
-    setRoundState('guessing');
-    speakCard(newCard);
+
+    if (gameConfig.variant !== 'audio' && roundState === 'scored') {
+      // Simulate drawing a new card with a quick down-and-up flip sequence
+      setIsFlipping(true);
+      setRoundState('idle'); // Triggers flip backward
+      
+      setTimeout(() => {
+        const newCard = generateCard();
+        setCard(newCard);
+        setRoundState('guessing'); // Triggers flip forward
+        if (gameConfig.variant === 'audio') speakCard(newCard);
+        setIsFlipping(false);
+      }, 250);
+    } else {
+      const newCard = generateCard();
+      setCard(newCard);
+      setRoundState('guessing');
+      if (gameConfig.variant === 'audio') speakCard(newCard);
+    }
   };
 
   const handlePointerDown = (e, item) => {
-    if (roundState !== 'guessing' || shaking || gameState === 'gameover') return; 
+    if (roundState !== 'guessing' || shaking || gameState === 'gameover' || isFlipping) return; 
     unlockMobileAudio();
     setDraggedItem(item);
     setDragPos({ x: e.clientX, y: e.clientY });
@@ -514,24 +526,22 @@ export default function App() {
   };
 
   const startGame = () => {
-    // Force browser interaction unlock chain
     unlockMobileAudio();
     playSound('flip');
-
     setScores({ TL: 0, TR: 0, BL: 0, BR: 0 });
     setRoundState('idle');
     setCard(null);
     setTiedPlayers([]);
     setEliminated([]);
     setWinner(null);
+    setIsFlipping(false);
     if (gameConfig.mode === 'time') setTimeLeft(gameConfig.limit);
     setGameState('playing');
   };
 
   if (gameState === 'setup') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 font-sans relative">
-        {/* NATIVE iOS SOUND ACTIVATOR OVERLAY (Invisible but catches raw iOS touch events prior to game setup clicks) */}
+      <div className=\"flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-4 font-sans relative\">
         {!audioUnlocked && (
           <div 
             onTouchStart={() => {
@@ -542,17 +552,17 @@ export default function App() {
               unlockMobileAudio();
               setAudioUnlocked(true);
             }}
-            className="absolute inset-0 bg-transparent z-50 cursor-pointer"
+            className=\"absolute inset-0 bg-transparent z-50 cursor-pointer\"
           />
         )}
 
-        <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center border border-slate-700 relative z-10">
-          <h1 className="text-4xl font-bold mb-2 text-yellow-400 tracking-wider">GHOST BLITZ</h1>
-          <p className="text-slate-400 mb-8">Digital Edition</p>
+        <div className=\"bg-slate-800 p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center border border-slate-700 relative z-10\">
+          <h1 className=\"text-4xl font-bold mb-2 text-yellow-400 tracking-wider\">GHOST BLITZ</h1>
+          <p className=\"text-slate-400 mb-6\">Digital Edition</p>
           
-          <div className="mb-6">
-            <h2 className="text-xl mb-3 font-bold text-slate-300">Players</h2>
-            <div className="flex justify-center gap-2 mb-4">
+          <div className=\"mb-6\">
+            <h2 className=\"text-xl mb-3 font-bold text-slate-300\">Players</h2>
+            <div className=\"flex justify-center gap-2 mb-4\">
               {[1, 2, 3, 4].map(num => (
                 <button
                   key={num}
@@ -569,29 +579,62 @@ export default function App() {
               ))}
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
+            <div className=\"grid grid-cols-2 gap-3\">
               {CORNERS.slice(0, numPlayers).map((c, i) => (
                 <input
                   key={c.id}
-                  type="text"
+                  type=\"text\"
                   placeholder={`Player ${i + 1} Name`}
                   maxLength={12}
                   value={playerNames[c.id]}
                   onChange={(e) => setPlayerNames({ ...playerNames, [c.id]: e.target.value })}
-                  className="bg-slate-700 text-white px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-center border border-slate-600"
+                  className=\"bg-slate-700 text-white px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-center border border-slate-600\"
                 />
               ))}
             </div>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-xl mb-3 font-bold text-slate-300">Game Mode</h2>
-            <div className="flex bg-slate-700 rounded-xl p-1 mb-4">
+          <div className=\"mb-6\">
+            <h2 className=\"text-xl mb-3 font-bold text-slate-300\">Game Version</h2>
+            <div className=\"flex bg-slate-700 rounded-xl p-1 gap-1\">
+              <button 
+                className={`flex-1 py-2 rounded-lg font-bold transition-all ${gameConfig.variant === 'visual' ? 'bg-slate-800 text-yellow-400 shadow' : 'text-slate-400 hover:bg-slate-600'}`}
+                onClick={() => {
+                  unlockMobileAudio();
+                  setGameConfig({ ...gameConfig, variant: 'visual' });
+                }}
+              >
+                Cards
+              </button>
+              <button 
+                className={`flex-1 py-2 rounded-lg font-bold transition-all ${gameConfig.variant === 'audio' ? 'bg-slate-800 text-yellow-400 shadow' : 'text-slate-400 hover:bg-slate-600'}`}
+                onClick={() => {
+                  unlockMobileAudio();
+                  setGameConfig({ ...gameConfig, variant: 'audio' });
+                }}
+              >
+                Listening
+              </button>
+              <button 
+                className={`flex-1 py-2 rounded-lg font-bold transition-all ${gameConfig.variant === 'text' ? 'bg-slate-800 text-yellow-400 shadow' : 'text-slate-400 hover:bg-slate-600'}`}
+                onClick={() => {
+                  unlockMobileAudio();
+                  setGameConfig({ ...gameConfig, variant: 'text' });
+                }}
+              >
+                Reading
+              </button>
+            </div>
+          </div>
+
+          <div className=\"mb-8\">
+            <h2 className=\"text-xl mb-3 font-bold text-slate-300\">Win Condition</h2>
+            <div className=\"flex bg-slate-700 rounded-xl p-1 mb-4\">
               <button 
                 className={`flex-1 py-2 rounded-lg font-bold transition-all ${gameConfig.mode === 'points' ? 'bg-slate-800 text-yellow-400 shadow' : 'text-slate-400'}`}
                 onClick={() => {
                   unlockMobileAudio();
-                  setGameConfig({ mode: 'points', limit: 5 });
+                  setGameConfig({ ...gameConfig, mode: 'points', limit: 5 });
                 }}
               >
                 Points Race
@@ -600,21 +643,21 @@ export default function App() {
                 className={`flex-1 py-2 rounded-lg font-bold transition-all ${gameConfig.mode === 'time' ? 'bg-slate-800 text-yellow-400 shadow' : 'text-slate-400'}`}
                 onClick={() => {
                   unlockMobileAudio();
-                  setGameConfig({ mode: 'time', limit: 180 });
+                  setGameConfig({ ...gameConfig, mode: 'time', limit: 180 });
                 }}
               >
                 Time Limit
               </button>
             </div>
 
-            <div className="flex justify-center gap-2">
+            <div className=\"flex justify-center gap-2\">
               {gameConfig.mode === 'points' ? (
                 [5, 7, 10].map(pts => (
                   <button 
                     key={pts} 
                     onClick={() => {
                       unlockMobileAudio();
-                      setGameConfig({ mode: 'points', limit: pts });
+                      setGameConfig({ ...gameConfig, limit: pts });
                     }} 
                     className={`px-4 py-2 rounded-lg font-bold ${gameConfig.limit === pts ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}
                   >
@@ -627,7 +670,7 @@ export default function App() {
                     key={secs} 
                     onClick={() => {
                       unlockMobileAudio();
-                      setGameConfig({ mode: 'time', limit: secs });
+                      setGameConfig({ ...gameConfig, limit: secs });
                     }} 
                     className={`px-4 py-2 rounded-lg font-bold ${gameConfig.limit === secs ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}
                   >
@@ -640,7 +683,7 @@ export default function App() {
           
           <button 
             onClick={startGame}
-            className="w-full bg-green-500 hover:bg-green-400 text-white py-4 rounded-xl text-2xl font-black uppercase tracking-widest shadow-lg transition-colors"
+            className=\"w-full bg-green-500 hover:bg-green-400 text-white py-4 rounded-xl text-2xl font-black uppercase tracking-widest shadow-lg transition-colors\"
           >
             Start Game
           </button>
@@ -652,9 +695,15 @@ export default function App() {
   const activeCorners = CORNERS.slice(0, numPlayers);
   const getPlayerLabel = (c) => playerNames[c.id] || c.label;
 
+  // The card is considered \"flipped\" to reveal its face in these conditions:
+  const isCardFlipped = 
+    roundState === 'scored' || 
+    gameState === 'gameover' || 
+    (roundState === 'guessing' && gameConfig.variant !== 'audio');
+
   return (
     <div 
-      className="fixed inset-0 bg-amber-950 overflow-hidden touch-none select-none font-sans"
+      className=\"fixed inset-0 bg-amber-950 overflow-hidden touch-none select-none font-sans\"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
@@ -670,7 +719,7 @@ export default function App() {
           animation: shake 0.15s ease-in-out infinite;
         }
         .card-flip-inner {
-          transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+          transition: transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
           transform-style: preserve-3d;
         }
         .card-flip-flipped .card-flip-inner {
@@ -691,26 +740,22 @@ export default function App() {
         }
       `}</style>
 
-      {/* WOODEN TABLE BACKGROUND */}
-      <div className="absolute inset-0 opacity-40 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-600 via-amber-950 to-black mix-blend-multiply" />
+      <div className=\"absolute inset-0 opacity-40 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-600 via-amber-950 to-black mix-blend-multiply\" />
 
-      {/* CONFETTI BURST ON CORRECT DRAG */}
       {confettiOrigin && <ConfettiGenerator x={confettiOrigin.x} y={confettiOrigin.y} />}
 
-      {/* HUD ELEMENTS */}
       {gameConfig.mode === 'time' && gameState === 'playing' && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-900/80 px-6 py-2 rounded-full z-40 text-yellow-400 font-bold text-2xl tracking-widest border border-slate-700 shadow-lg">
+        <div className=\"absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-900/80 px-6 py-2 rounded-full z-40 text-yellow-400 font-bold text-2xl tracking-widest border border-slate-700 shadow-lg\">
           {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
         </div>
       )}
 
       {gameState === 'suddendeath' && (
-        <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-40 text-red-500 font-black text-4xl md:text-6xl tracking-widest drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] pulse whitespace-nowrap pointer-events-none">
+        <div className=\"absolute top-8 left-1/2 transform -translate-x-1/2 z-40 text-red-500 font-black text-4xl md:text-6xl tracking-widest drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] pulse whitespace-nowrap pointer-events-none\">
           SUDDEN DEATH!
         </div>
       )}
 
-      {/* PLAYER CORNERS */}
       {activeCorners.map(corner => {
         const isEliminated = gameState === 'suddendeath' && eliminated.includes(corner.id);
         const isTied = gameState === 'suddendeath' && tiedPlayers.includes(corner.id);
@@ -723,47 +768,58 @@ export default function App() {
               isEliminated || outOfAction ? 'bg-red-900/80 border-red-500/30 grayscale' : 'bg-slate-900/60 border-amber-500/30'
             }`}
           >
-            <div className="text-xs md:text-sm text-slate-300 uppercase font-bold tracking-wider max-w-full truncate">
+            <div className=\"text-xs md:text-sm text-slate-300 uppercase font-bold tracking-wider max-w-full truncate\">
               {getPlayerLabel(corner)}
             </div>
             <div className={`text-4xl md:text-6xl font-black ${isEliminated || outOfAction ? 'text-red-400' : 'text-yellow-400'}`}>
               {scores[corner.id]}
             </div>
-            {isEliminated && <div className="absolute inset-0 flex items-center justify-center font-black text-red-500 transform -rotate-12 text-xl tracking-widest bg-black/50">OUT</div>}
+            {isEliminated && <div className=\"absolute inset-0 flex items-center justify-center font-black text-red-500 transform -rotate-12 text-xl tracking-widest bg-black/50\">OUT</div>}
           </div>
         );
       })}
 
-      {/* GAME AREA CENTER */}
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-4xl max-h-4xl flex items-center justify-center">
+      <div className=\"absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-4xl max-h-4xl flex items-center justify-center\">
         
-        {/* CENTER DECK / CARD */}
         <div 
-          className={`relative z-20 w-48 h-64 md:w-56 md:h-80 cursor-pointer perspective-1000 ${(roundState === 'scored' || gameState === 'gameover') ? 'card-flip-flipped' : ''}`}
+          className={`relative z-20 w-48 h-64 md:w-56 md:h-80 cursor-pointer perspective-1000 ${isCardFlipped ? 'card-flip-flipped' : ''}`}
           onClick={handleDeckTap}
         >
-          <div className="card-flip-inner w-full h-full relative shadow-2xl rounded-2xl">
-            {/* FACE DOWN (DECK) */}
-            <div className="card-face absolute inset-0 w-full h-full bg-indigo-700 rounded-2xl border-4 border-slate-300 flex flex-col items-center justify-center shadow-[inset_0_0_30px_rgba(0,0,0,0.6)]">
-              <ItemIcon shape="ghost" color="white" size={70} className="mx-auto mb-4 opacity-50" />
-              <p className="text-2xl text-white font-black tracking-widest opacity-90 uppercase text-center px-4">
-                {roundState === 'guessing' ? 'Listen!' : (gameState === 'suddendeath' ? 'Tap Tiebreaker' : 'Tap')}
+          <div className=\"card-flip-inner w-full h-full relative shadow-2xl rounded-2xl\">
+            {/* FACE DOWN */}
+            <div className=\"card-face absolute inset-0 w-full h-full bg-indigo-700 rounded-2xl border-4 border-slate-300 flex flex-col items-center justify-center shadow-[inset_0_0_30px_rgba(0,0,0,0.6)]\">
+              <ItemIcon shape=\"ghost\" color=\"white\" size={70} className=\"mx-auto mb-4 opacity-50\" />
+              <p className=\"text-2xl text-white font-black tracking-widest opacity-90 uppercase text-center px-4\">
+                {roundState === 'guessing' ? 'Listen!' : (gameState === 'suddendeath' ? 'Tiebreaker' : 'Tap')}
               </p>
             </div>
 
-            {/* FACE UP (CARD REVEALED) */}
-            <div className="card-face card-back absolute inset-0 w-full h-full bg-slate-50 rounded-2xl border-4 border-slate-300 shadow-xl flex flex-col items-center justify-center p-6">
+            {/* FACE UP */}
+            <div className=\"card-face card-back absolute inset-0 w-full h-full bg-slate-50 rounded-2xl border-4 border-slate-300 shadow-xl flex flex-col items-center justify-center p-6\">
               {card && (
-                <div className="relative w-full h-full flex flex-col items-center justify-around gap-4">
-                  <ItemIcon shape={card.items[0].shape} color={card.items[0].color} size={90} />
-                  <ItemIcon shape={card.items[1].shape} color={card.items[1].color} size={90} />
-                </div>
+                gameConfig.variant === 'text' && roundState === 'guessing' ? (
+                  // TEXT / READING VARIANT DURING GUESSING
+                  <div className=\"relative w-full h-full flex flex-col items-center justify-center text-center px-2\">
+                    <div className=\"text-3xl md:text-4xl font-black uppercase tracking-wider leading-tight\" style={{ color: getTextColor(card.items[0].color) }}>
+                      {card.items[0].color}<br/>{card.items[0].shape}
+                    </div>
+                    <div className=\"text-2xl text-slate-400 font-bold my-4\">&amp;</div>
+                    <div className=\"text-3xl md:text-4xl font-black uppercase tracking-wider leading-tight\" style={{ color: getTextColor(card.items[1].color) }}>
+                      {card.items[1].color}<br/>{card.items[1].shape}
+                    </div>
+                  </div>
+                ) : (
+                  // VISUAL VARIANT OR POST-GUESS (SCORED) STATE
+                  <div className=\"relative w-full h-full flex flex-col items-center justify-around gap-4\">
+                    <ItemIcon shape={card.items[0].shape} color={card.items[0].color} size={90} />
+                    <ItemIcon shape={card.items[1].shape} color={card.items[1].color} size={90} />
+                  </div>
+                )
               )}
             </div>
           </div>
         </div>
 
-        {/* WOODEN ITEMS AROUND THE CARD */}
         {itemPositions.map((item) => {
           const isBeingDragged = draggedItem?.shape === item.shape;
           
@@ -789,41 +845,40 @@ export default function App() {
             <div
               key={item.shape}
               style={style}
-              className={`cursor-grab active:cursor-grabbing p-2 transition-transform ${shaking ? 'shake-animation' : ''} ${roundState !== 'guessing' ? 'opacity-40 grayscale pointer-events-none' : 'hover:scale-110'}`}
+              className={`cursor-grab active:cursor-grabbing p-2 transition-transform ${shaking ? 'shake-animation' : ''} ${roundState !== 'guessing' || isFlipping ? 'opacity-40 grayscale pointer-events-none' : 'hover:scale-110'}`}
               onPointerDown={(e) => handlePointerDown(e, item)}
             >
-              <ItemIcon shape={item.shape} color={item.color} size={100} className="relative z-10" />
+              <ItemIcon shape={item.shape} color={item.color} size={100} className=\"relative z-10\" />
             </div>
           );
         })}
       </div>
 
-      {/* GAME OVER OVERLAY */}
       {gameState === 'gameover' && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl text-center max-w-md w-full mx-4 border-2 border-slate-600">
-            <h2 className="text-4xl font-black text-white mb-2 uppercase">Game Over</h2>
+        <div className=\"absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm\">
+          <div className=\"bg-slate-800 p-8 rounded-3xl shadow-2xl text-center max-w-md w-full mx-4 border-2 border-slate-600\">
+            <h2 className=\"text-4xl font-black text-white mb-2 uppercase\">Game Over</h2>
             {winner === 'Draw' ? (
-              <p className="text-2xl text-slate-300 mb-8">It's a complete draw!</p>
+              <p className=\"text-2xl text-slate-300 mb-8\">It's a complete draw!</p>
             ) : (
-              <p className="text-2xl text-yellow-400 mb-8 font-bold">
+              <p className=\"text-2xl text-yellow-400 mb-8 font-bold\">
                 {playerNames[winner] || CORNERS.find(c => c.id === winner)?.label} Wins!
               </p>
             )}
             
-            <div className="flex gap-4">
+            <div className=\"flex gap-4\">
               <button 
                 onClick={() => {
                   unlockMobileAudio();
                   setGameState('setup');
                 }} 
-                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold transition-colors"
+                className=\"flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold transition-colors\"
               >
                 Setup
               </button>
               <button 
                 onClick={startGame} 
-                className="flex-1 bg-green-500 hover:bg-green-400 text-white py-3 rounded-xl font-bold transition-colors"
+                className=\"flex-1 bg-green-500 hover:bg-green-400 text-white py-3 rounded-xl font-bold transition-colors\"
               >
                 Play Again
               </button>
@@ -832,14 +887,13 @@ export default function App() {
         </div>
       )}
 
-      {/* QUIT BUTTON */}
       {gameState !== 'gameover' && (
         <button 
           onClick={() => {
             unlockMobileAudio();
             setGameState('setup');
           }}
-          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/10 hover:bg-white/20 backdrop-blur-md px-6 py-2 rounded-full text-white/70 text-sm font-bold z-50 transition-colors"
+          className=\"absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/10 hover:bg-white/20 backdrop-blur-md px-6 py-2 rounded-full text-white/70 text-sm font-bold z-50 transition-colors\"
         >
           End Game
         </button>
@@ -847,3 +901,9 @@ export default function App() {
     </div>
   );
 }
+"""
+
+with open("App-v2.jsx", "w", encoding="utf-8") as f:
+    f.write(code)
+
+print("[file-tag: App-v2.jsx]")
