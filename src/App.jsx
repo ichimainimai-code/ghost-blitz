@@ -293,7 +293,7 @@ export default function App() {
   const [numPlayers, setNumPlayers] = useState(2);
   const [playerNames, setPlayerNames] = useState({ TL: '', TR: '', BL: '', BR: '' });
   
-  // Added variant to gameConfig to support visual, audio, and text modes
+  // variant supports: visual, audio, and text modes
   const [gameConfig, setGameConfig] = useState({ mode: 'points', limit: 5, variant: 'audio' }); 
   const [timeLeft, setTimeLeft] = useState(0);
   const [tiedPlayers, setTiedPlayers] = useState([]);
@@ -306,8 +306,8 @@ export default function App() {
   const [shaking, setShaking] = useState(false);
   const [isFlipping, setIsFlipping] = useState(false); // Controls flip animation between guesses
   
-  const [draggedItem, setDraggedItem] = useState(null);
-  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  // MULTI-TOUCH DRAG REGISTRY: { [itemShape]: { pointerId, x, y } }
+  const [activeDrags, setActiveDrags] = useState({});
   
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [confettiOrigin, setConfettiOrigin] = useState(null);
@@ -395,11 +395,11 @@ export default function App() {
       const text = `${cardData.items[0].color} ${cardData.items[0].shape}, and ${cardData.items[1].color} ${cardData.items[1].shape}`;
       const utterance = new SpeechSynthesisUtterance(text);
       
-      // Force the language to American English
+      // Force language to American English
       utterance.lang = 'en-US';
       utterance.rate = 1.1; 
 
-      // Attempt to find a native English voice installed on the device
+      // Select english accent voice explicitly if available
       const voices = window.speechSynthesis.getVoices();
       const englishVoice = voices.find(voice => voice.lang.startsWith('en-'));
       if (englishVoice) {
@@ -411,7 +411,8 @@ export default function App() {
   };
 
   const handleDeckTap = () => {
-    if (draggedItem || gameState === 'gameover' || isFlipping) return;
+    // Ensure card deck isn't tapped during active drag sequences
+    if (Object.keys(activeDrags).length > 0 || gameState === 'gameover' || isFlipping) return;
     
     unlockMobileAudio();
 
@@ -444,20 +445,45 @@ export default function App() {
     }
   };
 
+  // --- MULTI-TOUCH DRAGGING ROUTINES ---
   const handlePointerDown = (e, item) => {
     if (roundState !== 'guessing' || shaking || gameState === 'gameover' || isFlipping) return; 
     unlockMobileAudio();
-    setDraggedItem(item);
-    setDragPos({ x: e.clientX, y: e.clientY });
+
+    // LOCK: If the item is already registered in active drags, reject incoming pointer downs!
+    if (activeDrags[item.shape]) return;
+
+    // Secure focus capture so mouse/touch move events route exclusively to this element
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    setActiveDrags(prev => ({
+      ...prev,
+      [item.shape]: {
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY
+      }
+    }));
   };
 
-  const handlePointerMove = (e) => {
-    if (!draggedItem) return;
-    setDragPos({ x: e.clientX, y: e.clientY });
+  const handlePointerMove = (e, item) => {
+    const dragData = activeDrags[item.shape];
+    // Security check: Only update coordinates if this exact pointer ID initiated the drag
+    if (!dragData || dragData.pointerId !== e.pointerId) return;
+
+    setActiveDrags(prev => ({
+      ...prev,
+      [item.shape]: {
+        ...prev[item.shape],
+        x: e.clientX,
+        y: e.clientY
+      }
+    }));
   };
 
-  const handlePointerUp = (e) => {
-    if (!draggedItem) return;
+  const handlePointerUp = (e, item) => {
+    const dragData = activeDrags[item.shape];
+    if (!dragData || dragData.pointerId !== e.pointerId) return;
 
     const { clientX, clientY } = e;
     const { innerWidth, innerHeight } = window;
@@ -472,11 +498,17 @@ export default function App() {
     else if (clientX > innerWidth - thresholdX && clientY > innerHeight - thresholdY && numPlayers >= 4) scoredPlayer = 'BR';
 
     if (scoredPlayer) {
-      const isCorrect = draggedItem.shape === card.answer;
+      const isCorrect = item.shape === card.answer;
       
       if (gameState === 'suddendeath') {
         if (!tiedPlayers.includes(scoredPlayer) || eliminated.includes(scoredPlayer)) {
-          setDraggedItem(null);
+          // Clean up drag registry and release target
+          try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (_) {}
+          setActiveDrags(prev => {
+            const next = { ...prev };
+            delete next[item.shape];
+            return next;
+          });
           return;
         }
 
@@ -533,7 +565,13 @@ export default function App() {
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     }
 
-    setDraggedItem(null);
+    // Clean up drag registry and release target
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (_) {}
+    setActiveDrags(prev => {
+      const next = { ...prev };
+      delete next[item.shape];
+      return next;
+    });
   };
 
   const startGame = () => {
@@ -546,6 +584,7 @@ export default function App() {
     setEliminated([]);
     setWinner(null);
     setIsFlipping(false);
+    setActiveDrags({});
     if (gameConfig.mode === 'time') setTimeLeft(gameConfig.limit);
     setGameState('playing');
   };
@@ -715,9 +754,6 @@ export default function App() {
   return (
     <div 
       className="fixed inset-0 bg-amber-950 overflow-hidden touch-none select-none font-sans"
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
     >
       <style>{`
         @keyframes shake {
@@ -767,6 +803,7 @@ export default function App() {
         </div>
       )}
 
+      {/* PLAYER CORNERS */}
       {activeCorners.map(corner => {
         const isEliminated = gameState === 'suddendeath' && eliminated.includes(corner.id);
         const isTied = gameState === 'suddendeath' && tiedPlayers.includes(corner.id);
@@ -792,6 +829,7 @@ export default function App() {
 
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-4xl max-h-4xl flex items-center justify-center">
         
+        {/* CENTER DECK / CARD */}
         <div 
           className={`relative z-20 w-48 h-64 md:w-56 md:h-80 cursor-pointer perspective-1000 ${isCardFlipped ? 'card-flip-flipped' : ''}`}
           onClick={handleDeckTap}
@@ -831,15 +869,17 @@ export default function App() {
           </div>
         </div>
 
+        {/* ITEMS AROUND CARD */}
         {itemPositions.map((item) => {
-          const isBeingDragged = draggedItem?.shape === item.shape;
+          const dragData = activeDrags[item.shape];
+          const isBeingDragged = !!dragData;
           
           let style = {};
           if (isBeingDragged) {
             style = {
               position: 'fixed',
-              left: dragPos.x,
-              top: dragPos.y,
+              left: dragData.x,
+              top: dragData.y,
               transform: `translate(-50%, -50%) scale(1.3) rotate(${item.rotation}deg)`,
               zIndex: 100,
               pointerEvents: 'none' 
@@ -856,8 +896,11 @@ export default function App() {
             <div
               key={item.shape}
               style={style}
-              className={`cursor-grab active:cursor-grabbing p-2 transition-transform ${shaking ? 'shake-animation' : ''} ${roundState !== 'guessing' || isFlipping ? 'opacity-40 grayscale pointer-events-none' : 'hover:scale-110'}`}
+              className={`cursor-grab active:cursor-grabbing p-2 transition-transform touch-none ${shaking ? 'shake-animation' : ''} ${roundState !== 'guessing' || isFlipping ? 'opacity-40 grayscale pointer-events-none' : 'hover:scale-110'}`}
               onPointerDown={(e) => handlePointerDown(e, item)}
+              onPointerMove={(e) => handlePointerMove(e, item)}
+              onPointerUp={(e) => handlePointerUp(e, item)}
+              onPointerCancel={(e) => handlePointerUp(e, item)}
             >
               <ItemIcon shape={item.shape} color={item.color} size={100} className="relative z-10" />
             </div>
@@ -865,6 +908,7 @@ export default function App() {
         })}
       </div>
 
+      {/* GAME OVER */}
       {gameState === 'gameover' && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl text-center max-w-md w-full mx-4 border-2 border-slate-600">
@@ -898,6 +942,7 @@ export default function App() {
         </div>
       )}
 
+      {/* QUIT BUTTON */}
       {gameState !== 'gameover' && (
         <button 
           onClick={() => {
